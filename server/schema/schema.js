@@ -1,4 +1,6 @@
-// const { query } = require("express");
+const Author = require("../models/author");
+const Book = require("../models/book");
+
 const graphql = require("graphql");
 const {
   GraphQLObjectType,
@@ -8,45 +10,6 @@ const {
   GraphQLInt,
   GraphQLList,
 } = graphql;
-const _ = require("lodash");
-
-// dummy data
-
-const books = [
-  { id: "1", name: "To Kill a Mockingbird", genre: "Fiction", authorId: "1" },
-  { id: "2", name: "1984", genre: "Dystopian", authorId: "2" },
-  { id: "3", name: "The Great Gatsby", genre: "Classic", authorId: "3" },
-  { id: "4", name: "The Catcher in the Rye", genre: "Fiction", authorId: "4" },
-  { id: "5", name: "Moby Dick", genre: "Adventure", authorId: "2" },
-  { id: "6", name: "Pride and Prejudice", genre: "Romance", authorId: "3" },
-  { id: "7", name: "The Lord of the Rings", genre: "Fantasy", authorId: "3" },
-  {
-    id: "8",
-    name: "Harry Potter and the Sorcerer's Stone",
-    genre: "Fantasy",
-    authorId: "8",
-  },
-  { id: "9", name: "The Alchemist", genre: "Philosophical", authorId: "9" },
-  {
-    id: "10",
-    name: "Brave New World",
-    genre: "Science Fiction",
-    authorId: "10",
-  },
-];
-
-const authors = [
-  { id: "1", name: "Harper Lee", age: 89, bookId: "1" },
-  { id: "2", name: "George Orwell", age: 46, bookId: "2" },
-  { id: "3", name: "F. Scott Fitzgerald", age: 44, bookId: "3" },
-  { id: "4", name: "J.D. Salinger", age: 91, bookId: "4" },
-  { id: "5", name: "Herman Melville", age: 72, bookId: "5" },
-  { id: "6", name: "Jane Austen", age: 41, bookId: "6" },
-  { id: "7", name: "J.R.R. Tolkien", age: 81, bookId: "7" },
-  { id: "8", name: "J.K. Rowling", age: 58, bookId: "8" },
-  { id: "9", name: "Paulo Coelho", age: 76, bookId: "9" },
-  { id: "10", name: "Aldous Huxley", age: 69, bookId: "10" },
-];
 
 const BookType = new GraphQLObjectType({
   name: "Book",
@@ -56,8 +19,12 @@ const BookType = new GraphQLObjectType({
     genre: { type: GraphQLString },
     author: {
       type: AuthorType,
-      resolve(parent, args) {
-        return _.find(authors, { id: parent.authorId });
+      async resolve(parent, args) {
+        try {
+          return await Author.findById(parent.authorId);
+        } catch (error) {
+          throw new Error("Failed to fetch author: " + error.message);
+        }
       },
     },
   }),
@@ -69,10 +36,14 @@ const AuthorType = new GraphQLObjectType({
     id: { type: GraphQLID },
     name: { type: GraphQLString },
     age: { type: GraphQLInt },
-    book: {
+    books: {
       type: new GraphQLList(BookType),
-      resolve(parent, args) {
-        return _.filter(books, { authorId: parent.bookId });
+      async resolve(parent, args) {
+        try {
+          return await Book.find({ authorId: parent.id });
+        } catch (error) {
+          throw new Error("Failed to fetch books: " + error.message);
+        }
       },
     },
   }),
@@ -84,27 +55,84 @@ const RootQuery = new GraphQLObjectType({
     book: {
       type: BookType,
       args: { id: { type: GraphQLID } },
-      resolve(parent, args) {
-        return _.find(books, { id: args.id });
+      async resolve(parent, args) {
+        try {
+          return await Book.findById(args.id);
+        } catch (err) {
+          throw new Error("Failed to fetch book: " + err.message);
+        }
       },
     },
     author: {
       type: AuthorType,
       args: { id: { type: GraphQLID } },
-      resolve(parent, args) {
-        return _.find(authors, { id: args.id });
+      async resolve(parent, args) {
+        try {
+          return await Author.findById(args.id);
+        } catch (err) {
+          throw new Error("Failed to fetch author: " + err.message);
+        }
       },
     },
     books: {
       type: new GraphQLList(BookType),
-      resolve() {
-        return books;
+      async resolve() {
+        try {
+          return await Book.find();
+        } catch (err) {
+          throw new Error("Failed to fetch books: " + err.message);
+        }
       },
     },
     authors: {
       type: new GraphQLList(AuthorType),
-      resolve() {
-        return authors;
+      async resolve() {
+        try {
+          return await Author.find();
+        } catch (err) {
+          throw new Error("Failed to fetch authors: " + err.message);
+        }
+      },
+    },
+  },
+});
+
+const Mutation = new GraphQLObjectType({
+  name: "Mutation",
+  fields: {
+    addAuthor: {
+      type: AuthorType,
+      args: {
+        name: { type: GraphQLString },
+        age: { type: GraphQLInt },
+      },
+      async resolve(parent, args) {
+        try {
+          const author = new Author({ name: args.name, age: args.age });
+          return await author.save();
+        } catch (error) {
+          throw new Error("Failed to add author: " + error.message);
+        }
+      },
+    },
+    addBook: {
+      type: BookType,
+      args: {
+        name: { type: GraphQLString },
+        genre: { type: GraphQLString },
+        authorId: { type: GraphQLID },
+      },
+      async resolve(parent, args) {
+        try {
+          const book = new Book({
+            name: args.name,
+            genre: args.genre,
+            authorId: args.authorId,
+          });
+          return await book.save();
+        } catch (err) {
+          throw new Error("Failed to add book: " + err.message);
+        }
       },
     },
   },
@@ -112,4 +140,5 @@ const RootQuery = new GraphQLObjectType({
 
 module.exports = new GraphQLSchema({
   query: RootQuery,
+  mutation: Mutation,
 });

@@ -24,6 +24,7 @@ app.use(
   "/graphql",
   graphqlHTTP({
     schema,
+
     graphiql: true, // Enable GraphiQL for query testing
   })
 );
