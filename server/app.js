@@ -8,6 +8,7 @@ app.use(
   graphqlHTTP({
     // schema: schema,
     schema,
+    graphiql: true,
   })
 );
 
